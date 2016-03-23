@@ -225,23 +225,29 @@ class _PaletteMenuWidget(Gtk.Menu):
         y = event.y_root
 
         rect = self._invoker.get_rect()
-        in_invoker = x >= rect.x and x < (rect.x + rect.width) \
-            and y >= rect.y and y < (rect.y + rect.height)
+        #Prototype code starts here --- # rect is NOne for icon view !!
+        if rect is not None:
+            in_invoker = x >= rect.x and x < (rect.x + rect.width) \
+                and y >= rect.y and y < (rect.y + rect.height)
 
-        if in_invoker != self._mouse_in_invoker:
-            self._mouse_in_invoker = in_invoker
-            self._reevaluate_state()
+            if in_invoker != self._mouse_in_invoker:
+                self._mouse_in_invoker = in_invoker
+                self._reevaluate_state()
+        #Prototype code ends here --- 
 
     def _button_release_event_cb(self, widget, event):
         x = event.x_root
         y = event.y_root
 
         rect = self._invoker.get_rect()
-        in_invoker = x >= rect.x and x < (rect.x + rect.width) \
-            and y >= rect.y and y < (rect.y + rect.height)
+        #Prototype code starts here --- # rect is NOne for icon view !!
+        if rect is not None:
+            in_invoker = x >= rect.x and x < (rect.x + rect.width) \
+                and y >= rect.y and y < (rect.y + rect.height)
 
-        if in_invoker:
-            return True
+            if in_invoker:
+                return True
+        #Prototype code ends here 
 
     def _reevaluate_state(self):
         if self._entered:
@@ -650,7 +656,6 @@ class PaletteWindow(GObject.GObject):
         if self._invoker is not None:
             full_size_request = self.get_full_size_request()
             self._alignment = self._invoker.get_alignment(full_size_request)
-
             self.update_position()
             try:
                 self._widget.set_transient_for(self._invoker.get_toplevel())
@@ -841,7 +846,6 @@ class Invoker(GObject.GObject):
         palette_valign = alignment[1]
         invoker_halign = alignment[2]
         invoker_valign = alignment[3]
-
         if self._cursor_x == -1 or self._cursor_y == -1:
             if hasattr(self.parent, 'get_display'):
                 display = self.parent.get_display()
@@ -861,7 +865,7 @@ class Invoker(GObject.GObject):
             rect.x = self._cursor_x - dist
             rect.y = self._cursor_y - dist
             rect.width = rect.height = dist * 2
-
+            
         palette_width, palette_height = palette_dim.width, palette_dim.height
 
         x = rect.x + rect.width * invoker_halign + \
@@ -869,7 +873,6 @@ class Invoker(GObject.GObject):
 
         y = rect.y + rect.height * invoker_valign + \
             palette_height * palette_valign
-
         rect = Gdk.Rectangle()
         rect.x = int(x)
         rect.y = int(y)
@@ -933,12 +936,11 @@ class Invoker(GObject.GObject):
             pos = self._get_position_for_alignment(alignment, palette_dim)
             if self._in_screen(pos):
                 return alignment
-
+            
             area = self._get_area_in_screen(pos)
             if area > best_area:
                 best_alignment = alignment
                 best_area = area
-
         # Palette horiz/vert alignment
         ph = best_alignment[0]
         pv = best_alignment[1]
@@ -1446,7 +1448,12 @@ class TreeViewInvoker(Invoker):
         self._long_pressed_controller.disconnect(self._long_pressed_hid)
 
     def get_rect(self):
-        return self._tree_view.get_background_area(self._path, self._column)
+        #Prototype code starts here ---
+        if isinstance(self._tree_view, Gtk.TreeView):
+            return self._tree_view.get_background_area(self._path, self._column)
+        return None
+        #Prototype code ends here ---
+        
 
     def get_toplevel(self):
         return self._tree_view.get_toplevel()
@@ -1459,8 +1466,13 @@ class TreeViewInvoker(Invoker):
             self._path = None
             self._column = None
             return
-
-        path, column, x_, y_ = here
+        #Prototype code starts here ---
+        if isinstance(here, tuple):
+            path, column, x_, y_ = here
+        else:
+            path = here
+            column = None
+        #Prototype code ends here ---
         if path != self._path or column != self._column:
             self._redraw_cell(self._path, self._column)
             self._redraw_cell(path, column)
@@ -1475,6 +1487,11 @@ class TreeViewInvoker(Invoker):
             self.notify_mouse_enter()
 
     def _redraw_cell(self, path, column):
+        #Prototype code starts ---
+        if type(self._tree_view) is not Gtk.TreeView:
+            logging.debug('GO GO GO %r',self._tree_view)
+            return
+        #Prototype code ends ---
         area = self._tree_view.get_background_area(path, column)
         x, y = \
             self._tree_view.convert_bin_window_to_widget_coords(area.x, area.y)
@@ -1485,7 +1502,11 @@ class TreeViewInvoker(Invoker):
         here = self._tree_view.get_path_at_pos(x, y)
         if here is None:
             return False
-        path, column, cell_x, cell_y = here
+        if isinstance(here,tuple):
+            path, column, cell_x, cell_y = here
+        else:
+            path = here
+            column = None
         self._path = path
         self._column = column
         if event.button == 1:
@@ -1493,10 +1514,13 @@ class TreeViewInvoker(Invoker):
             if self.palette is not None:
                 self.palette.popdown(immediate=True)
             # NOTE: we don't use columns with more than one cell
-            cellrenderer = column.get_cells()[0]
-            if cellrenderer is not None and \
-                    isinstance(cellrenderer, CellRendererIcon):
-                cellrenderer.emit('clicked', path)
+            #Prototype code starts ---
+            if column is not None:
+                cellrenderer = column.get_cells()[0]
+                if cellrenderer is not None and \
+                        isinstance(cellrenderer, CellRendererIcon):
+                    cellrenderer.emit('clicked', path)
+            #Prototype code ends ---
             # So the treeview receives it and knows a drag isn't going on
             return False
         elif event.button == 3:
@@ -1516,8 +1540,13 @@ class TreeViewInvoker(Invoker):
 
     def _ensure_palette_exists(self):
         if hasattr(self._tree_view, 'create_palette'):
-            self.palette = self._tree_view.create_palette(
-                self._path, self._column)
+            #Prototype code starts here ---
+            if isinstance(self._tree_view, Gtk.TreeView):
+                self.palette = self._tree_view.create_palette(
+                    self._path, self._column)
+            else:
+                self.palette = self._tree_view.create_palette(self._path)
+            #Prototype code ends ---
         else:
             self.palette = None
 
